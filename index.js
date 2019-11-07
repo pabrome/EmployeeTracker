@@ -40,37 +40,6 @@ const db = new Database({
     database: "company"
 });
 
-var newEmployeeQuestions = [
-    {   
-        type: 'input',
-        name: 'firstName',
-        message: "What is the employee's first name?",
-    },
-    {   
-        type: 'input',
-        name: 'lastName',
-        message: "What is the employee's last name?",
-    },
-    {   
-        type: 'list',
-        name: 'role',
-        message: "Select employee's role:",
-        choices: roleList
-    },
-    {   
-        type: 'list',
-        name: 'department',
-        message: "Select employee's department:",
-        choices: departmentList
-    },
-    {   
-        type: 'list',
-        name: 'manager',
-        message: "Select employee's manager:",
-        choices: managerList
-    }
-];
-
 async function startProgram(){
     let answers = await inquirer.prompt({
         type: 'list',
@@ -78,28 +47,37 @@ async function startProgram(){
         message: 'What would you like to do?',
         choices: [
             'View all employees',
-            'View employees by manager',
-            'View employees by department',
-            'Add new employee',
+            'View all departments',
+            'View all roles',
+            'Add employee',
+            'Add department',
+            'Add role',
             'Remove employee',
-            'Update employee role',
-            'Update employee manager',
+            'Remove department',
+            'Remove role',
+            'Update employee role'
         ]
     });
     switch(answers.action) {
         case 'View all employees': viewAllEmployees()
             break;
-        case 'View employees by manager': 
+        case 'View all departments': viewAllDepartments()
             break;
-        case 'View employees by department': 
+        case 'View all roles': viewAllRoles()
             break;
-        case 'Add new employee': addNewEmployee()
+        case 'Add employee': addEmployee()
             break;
         case 'Remove employee': removeEmployee() 
             break;
-        case 'Update employee role': 
+        case 'Add department': addDepartment()
             break;
-        case 'Update employee manager': 
+        case 'Remove department': removeDepartment()
+            break;
+        case 'Add role': addRole()
+            break;
+        case 'Remove role': removeRole()
+            break;
+        case 'Update employee role': updateRole()
             break;
         default:
           // code block
@@ -115,21 +93,64 @@ async function viewAllEmployees(){
     });
 }
 
-async function addNewEmployee() {
-    //Build manager list
-    let res1 = await db.query("SELECT employee.id, first_name, last_name FROM employee WHERE manager_id IS NOT NULL");
-    for (x = 0; x <= res1.length-1; x++){
-        managerList[x] = `${res1[x].first_name} ${res1[x].last_name}`
-    };
+async function viewAllDepartments(){ 
+    db.query("SELECT * FROM departments", function(err, res) {
+        console.table(res); 
+        startProgram();
+    });
+}
 
-    //Build department list
-    departmentList = await buildList("name","departments");
+async function viewAllRoles(){ 
+    db.query("SELECT * FROM roles", function(err, res) {
+        console.table(res); 
+        startProgram();
+    });
+}
+
+async function addEmployee() {
+    //Build manager list
+    let res = await db.query("SELECT employee.id, first_name, last_name FROM employee WHERE manager_id IS NOT NULL");
+    for (x = 0; x <= res.length-1; x++){
+        managerList[x] = `${res[x].first_name} ${res[x].last_name}`
+    };
 
     //Build role list
     roleList = await buildList("title","roles");
 
-    let answer = await inquirer.prompt(newEmployeeQuestions);
+    //Build department list
+    departmentList = await buildList("name","departments");
+
+    let answer = await inquirer.prompt([ 
+        {   
+            type: 'input',
+            name: 'firstName',
+            message: "What is the employee's first name?",
+        },
+        {   
+            type: 'input',
+            name: 'lastName',
+            message: "What is the employee's last name?",
+        },
+        {   
+            type: 'list',
+            name: 'role',
+            message: "Select employee's role:",
+            choices: roleList
+        },
+        {   
+            type: 'list',
+            name: 'department',
+            message: "Select employee's department:",
+            choices: departmentList
+        },
+        {   
+            type: 'list',
+            name: 'manager',
+            message: "Select employee's manager:",
+            choices: managerList
+        }]);
     roleID = await convertToID("roles","title",answer.role);
+    // WRITE CODE FOR MANAGER ID
     managerID = 1
     db.query("INSERT INTO company.employee SET ?",
     {
@@ -140,9 +161,55 @@ async function addNewEmployee() {
     });
 }
 
+async function addDepartment() {
+    let answer = await inquirer.prompt({    
+        type: 'input',
+        name: 'department',
+        message: 'Department name:'}
+    );
+    db.query(`INSERT INTO departments (name) VALUES ("${answer.department}")`);
+    console.log(`${answer.department} successfully added.`);
+    startProgram();
+}
+
+async function addRole() {
+    //Build department list
+    departmentList = await buildList("name","departments");
+
+    let answer = await inquirer.prompt([    
+        {
+            type: 'input',
+            name: 'roleTitle',
+            message: 'Role title:'
+        },
+        {
+            type: 'input',
+            name: 'roleSalary',
+            message: 'Role salary:'
+        },
+        {   
+            type: 'list',
+            name: 'department',
+            message: "Select department for which role is intended:",
+            choices: departmentList
+        }]);
+
+    let departmentID = await convertToID("departments","name",answer.department)
+    console.log(answer.roleSalary)
+    console.log(parseInt(answer.roleSalary))
+
+    db.query(`INSERT INTO roles SET ?`,
+    {
+        title: answer.roleTitle,
+        salary: answer.roleSalary,
+        department_id: departmentID[0].id,
+    });
+    console.log(`${answer.roleTitle} successfully added.`);
+    startProgram();
+}
+
 async function removeEmployee() {
     employeeList = await buildNameList(false);
-    console.log(employeeList);
     let answer = await inquirer.prompt({   
         type: 'list',
         name: 'employeeRemove',
@@ -169,29 +236,100 @@ async function removeEmployee() {
     startProgram();
 }
 
+async function removeDepartment() {
+    departmentsList = await buildList("name","departments");
+    let answer = await inquirer.prompt({   
+        type: 'list',
+        name: 'departmentRemove',
+        message: "Select department to remove:",
+        choices: departmentsList
+    });
+
+    let confirmDepartment = await db.query(`SELECT id, name \n
+    FROM departments \m
+    WHERE name = "${answer.departmentRemove}"`);
+    console.table(confirmDepartment)
+    let confirmAnswer = await inquirer.prompt({
+        type: 'confirm',
+        name: 'confirmRemove',
+        message: `Confirm delete of ${answer.departmentRemove}.`
+    });
+    if (confirmAnswer.confirmRemove == true){
+        await db.query(`DELETE FROM departments WHERE id = ${confirmDepartment[0].id}`);
+        console.log(`${answer.departmentRemove} successfuly deleted from databse`);
+    }
+    startProgram();
+}
+
+async function removeRole() {
+    roleList = await buildList("title","roles");
+    let answer = await inquirer.prompt({   
+        type: 'list',
+        name: 'roleRemove',
+        message: "Select role to remove:",
+        choices: roleList
+    });
+
+    let confirmRole = await db.query(`SELECT id, title, salary, department_id \n
+    FROM roles \m
+    WHERE title = "${answer.roleRemove}"`);
+    console.table(confirmRole)
+    let confirmAnswer = await inquirer.prompt({
+        type: 'confirm',
+        name: 'confirmRemove',
+        message: `Confirm delete of ${answer.roleRemove}.`
+    });
+    if (confirmAnswer.confirmRemove == true){
+        await db.query(`DELETE FROM roles WHERE id = ${confirmRole[0].id}`);
+        console.log(`${answer.roleRemove} successfuly deleted from databse`);
+    }
+    startProgram();
+}
+
+async function updateRole(){
+    employeeList = await buildNameList(false);
+    let answer = await inquirer.prompt({   
+        type: 'list',
+        name: 'employeeUpdate',
+        message: "Select employee to update:",
+        choices: employeeList
+    });
+    let firstname = answer.employeeUpdate.split(" ")[0];
+    let lastname = answer.employeeUpdate.split(" ")[1];
+    let currentRole = db.query(`SELECT title FROM roles WHERE id = (SELECT )`)
+    console.log(`${firstname} ${lastname}'s current role is: ${currentRole}. Select a role to update to:`)
+    let roleList = await buildList("title","roles")
+    let answer2 = await inquirer.prompt({   
+        type: 'list',
+        name: 'roleChoice',
+        choices: roleList
+    });
+    console.log(answer2.roleChoice)
+}
+
 
 
 function convertToID(table,column,value,column2,value2) {
-    if (column2 && value2 == undefined) {where2 = ""}
-    else{where2 = ` AND ${column2}="${value2}"`};
+    if (column2 == null && value2 == null) {where2 = ""}
+    else {where2 = ` AND ${column2}="${value2}"`};
     return db.query(`SELECT id FROM ${table} WHERE ${column}="${value}"${where2}`);
 }
 
 async function buildNameList(constraint) {
-    let list = []
-    var where
+    let list = [];
+    var where;
     if (constraint == true) {where = " WHERE manager_id IS NOT NULL"}
-    else{where = ""}
-    let res = await db.query(`SELECT first_name, last_name FROM employee${where}`)
+    else{where = ""};
+    let res = await db.query(`SELECT first_name, last_name FROM employee${where}`);
     for (x = 0; x <= res.length-1; x++){
         list[x] = `${res[x].first_name} ${res[x].last_name}`
-    }
-    return list
+    };
+    return list;
 }
 
 async function buildList(column,table) {
-    let list = []
-    let res = await db.query(`SELECT ${column} FROM ${table}`)
-    for (item of res) {list.push(item[Object.keys(item)[0]])}
-    return list
-}
+    let list = [];
+    let res = await db.query(`SELECT ${column} FROM ${table}`);
+    for (item of res) {list.push(item[Object.keys(item)[0]])};
+    return list;
+};
