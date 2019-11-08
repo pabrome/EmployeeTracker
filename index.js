@@ -114,11 +114,8 @@ async function addEmployee() {
         managerList[x] = `${res[x].first_name} ${res[x].last_name}`
     };
 
-    //Build role list
-    roleList = await buildList("title","roles");
-
     //Build department list
-    departmentList = await buildList("name","departments");
+    departmentList = await buildList("departments","name");
 
     let answer = await inquirer.prompt([ 
         {   
@@ -133,31 +130,46 @@ async function addEmployee() {
         },
         {   
             type: 'list',
+            name: 'department',
+            message: "Select employee's department:",
+            choices: departmentList
+        }
+    ]);
+
+    //Build role list
+    departmentID = await convertToID("departments","name",answer.department)
+    roleList = await buildList("roles","title","department_id",departmentID[0].id);
+    managerList = await buildNameList(false,departmentID[0].id)
+    managerList.push("No manager")
+
+    let answer2 = await inquirer.prompt([
+        {   
+            type: 'list',
             name: 'role',
             message: "Select employee's role:",
             choices: roleList
         },
         {   
             type: 'list',
-            name: 'department',
-            message: "Select employee's department:",
-            choices: departmentList
-        },
-        {   
-            type: 'list',
             name: 'manager',
             message: "Select employee's manager:",
             choices: managerList
-        }]);
-    roleID = await convertToID("roles","title",answer.role);
-    // WRITE CODE FOR MANAGER ID
-    managerID = 1
+        }
+    ]);
+    roleID = await convertToID("roles","title",answer2.role);
+    if (answer2.manager == "No manager") {managerID = "NULL"}
+    else {
+        let firstname = answer2.manager.split(" ")[0];
+        let lastname = answer2.manager.split(" ")[1];
+        managerID = await convertToID("employee","first_name",firstname,"last_name",lastname)
+    }
     db.query("INSERT INTO company.employee SET ?",
     {
         first_name: answer.firstName,
         last_name: answer.lastName,
         role_id: roleID[0].id,
-        manager_id: managerID
+        manager_id: managerID,
+        department_id: departmentID[0].id
     });
 }
 
@@ -174,7 +186,7 @@ async function addDepartment() {
 
 async function addRole() {
     //Build department list
-    departmentList = await buildList("name","departments");
+    departmentList = await buildList("departments","name");
 
     let answer = await inquirer.prompt([    
         {
@@ -195,8 +207,6 @@ async function addRole() {
         }]);
 
     let departmentID = await convertToID("departments","name",answer.department)
-    console.log(answer.roleSalary)
-    console.log(parseInt(answer.roleSalary))
 
     db.query(`INSERT INTO roles SET ?`,
     {
@@ -237,7 +247,7 @@ async function removeEmployee() {
 }
 
 async function removeDepartment() {
-    departmentsList = await buildList("name","departments");
+    departmentsList = await buildList("departments","name");
     let answer = await inquirer.prompt({   
         type: 'list',
         name: 'departmentRemove',
@@ -262,7 +272,7 @@ async function removeDepartment() {
 }
 
 async function removeRole() {
-    roleList = await buildList("title","roles");
+    roleList = await buildList("roles","title");
     let answer = await inquirer.prompt({   
         type: 'list',
         name: 'roleRemove',
@@ -298,7 +308,7 @@ async function updateRole(){
     let lastname = answer.employeeUpdate.split(" ")[1];
     let currentRole = db.query(`SELECT title FROM roles WHERE id = (SELECT )`)
     console.log(`${firstname} ${lastname}'s current role is: ${currentRole}. Select a role to update to:`)
-    let roleList = await buildList("title","roles")
+    let roleList = await buildList("roles","title")
     let answer2 = await inquirer.prompt({   
         type: 'list',
         name: 'roleChoice',
@@ -308,18 +318,22 @@ async function updateRole(){
 }
 
 
-
-function convertToID(table,column,value,column2,value2) {
-    if (column2 == null && value2 == null) {where2 = ""}
-    else {where2 = ` AND ${column2}="${value2}"`};
-    return db.query(`SELECT id FROM ${table} WHERE ${column}="${value}"${where2}`);
+function convertToID(table,inputColumn,inputValue,inputColumn2,inputValue2) {
+    if (inputColumn2 == null && inputValue2 == null) {where2 = ""}
+    else {where2 = ` AND ${inputColumn2}="${inputValue2}"`};
+    return db.query(`SELECT id FROM ${table} WHERE ${inputColumn}="${inputValue}"${where2}`);
 }
 
-async function buildNameList(constraint) {
+async function buildNameList(managerConstraint,department_id) {
     let list = [];
     var where;
-    if (constraint == true) {where = " WHERE manager_id IS NOT NULL"}
-    else{where = ""};
+
+    if (managerConstraint == true && department_id !== null) {
+        where = ` WHERE manager_id IS NULL AND department_id = ${department_id}`
+    }
+    else if (managerConstraint == true) {where = " WHERE manager_id IS NULL"}
+    else if (department_id !== null) {where = ` WHERE department_id = ${department_id}`}
+    else {where = ""}
     let res = await db.query(`SELECT first_name, last_name FROM employee${where}`);
     for (x = 0; x <= res.length-1; x++){
         list[x] = `${res[x].first_name} ${res[x].last_name}`
@@ -327,9 +341,12 @@ async function buildNameList(constraint) {
     return list;
 }
 
-async function buildList(column,table) {
+async function buildList(table,column,whereColumn,whereValue) {
     let list = [];
-    let res = await db.query(`SELECT ${column} FROM ${table}`);
+    var where;
+    if (whereColumn == null && whereValue == null) {where = ""}
+    else {where = ` WHERE ${whereColumn}="${whereValue}"`};
+    let res = await db.query(`SELECT ${column} FROM ${table}${where}`);
     for (item of res) {list.push(item[Object.keys(item)[0]])};
     return list;
 };
