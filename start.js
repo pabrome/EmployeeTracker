@@ -80,7 +80,6 @@ async function startProgram(){
         case 'Update employee role': updateRole()
             break;
         default:
-          // code block
     }
 }
 
@@ -137,10 +136,10 @@ async function addEmployee() {
     ]);
 
     //Build role list
-    departmentID = await convertToID("departments","name",answer.department)
+    departmentID = await convertToID("departments","name",answer.department);
     roleList = await buildList("roles","title","department_id",departmentID[0].id);
-    managerList = await buildNameList(false,departmentID[0].id)
-    managerList.push("No manager")
+    managerList = await buildNameList(false,departmentID[0].id);
+    managerList.push("No manager");
 
     let answer2 = await inquirer.prompt([
         {   
@@ -163,14 +162,16 @@ async function addEmployee() {
         let lastname = answer2.manager.split(" ")[1];
         managerID = await convertToID("employee","first_name",firstname,"last_name",lastname)
     }
+    console.log(answer, managerID[0].id)
     db.query("INSERT INTO company.employee SET ?",
     {
         first_name: answer.firstName,
         last_name: answer.lastName,
         role_id: roleID[0].id,
-        manager_id: managerID,
+        manager_id: managerID[0].id,
         department_id: departmentID[0].id
     });
+    startProgram();
 }
 
 async function addDepartment() {
@@ -314,9 +315,8 @@ async function updateRole(){
         name: 'roleChoice',
         choices: roleList
     });
-    console.log(answer2.roleChoice)
+    startProgram();    
 }
-
 
 function convertToID(table,inputColumn,inputValue,inputColumn2,inputValue2) {
     if (inputColumn2 == null && inputValue2 == null) {where2 = ""}
@@ -332,7 +332,7 @@ async function buildNameList(managerConstraint,department_id) {
         where = ` WHERE manager_id IS NULL AND department_id = ${department_id}`
     }
     else if (managerConstraint == true) {where = " WHERE manager_id IS NULL"}
-    else if (department_id !== null) {where = ` WHERE department_id = ${department_id}`}
+    else if (department_id !== undefined) {where = ` WHERE department_id = ${department_id}`}
     else {where = ""}
     let res = await db.query(`SELECT first_name, last_name FROM employee${where}`);
     for (x = 0; x <= res.length-1; x++){
